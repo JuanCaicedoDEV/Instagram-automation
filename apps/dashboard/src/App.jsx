@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Layout, Play, CheckCircle, Clock, ExternalLink, Loader2, AlertCircle, Plus, Image as ImageIcon, Briefcase, X, Trash2, Calendar, List, Grid } from 'lucide-react';
+import { Layout, Play, CheckCircle, Clock, ExternalLink, Loader2, AlertCircle, Plus, Image as ImageIcon, Briefcase, X, Trash2, Calendar, List, Grid, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from './lib/utils';
 import CalendarView from './CalendarView';
 import PostDetailModal from './PostDetailModal';
-
-// API Configuration
 
 // API Configuration
 const API_URL = 'http://localhost:8000';
@@ -16,25 +14,163 @@ const API_KEY = import.meta.env.VITE_API_KEY;
 axios.defaults.baseURL = API_URL;
 axios.defaults.headers.common['X-API-Key'] = API_KEY;
 
-console.log("App Configured with API_KEY:", API_KEY ? "Present" : "Missing", "URL:", API_URL);
+// --- Brand Management Component ---
+function BrandManager({ onBack }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [generatedDNA, setGeneratedDNA] = useState(null);
+  const [brandName, setBrandName] = useState("");
+  const [brands, setBrands] = useState([]);
+
+  useEffect(() => {
+    fetchBrands();
+  }, []);
+
+  const fetchBrands = async () => {
+    try {
+      const res = await axios.get("/brands");
+      setBrands(res.data);
+    } catch (e) {
+      console.error("Failed to fetch brands", e);
+    }
+  };
+
+  const generateDNA = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.post("/brands/generate", { url });
+      setGeneratedDNA(res.data);
+      if (res.data.brand_name) setBrandName(res.data.brand_name);
+    } catch (e) {
+      alert("Failed to generate DNA");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveBrand = async () => {
+    try {
+      await axios.post("/brands", {
+        name: brandName,
+        website_url: url,
+        brand_dna: generatedDNA || {}
+      });
+      alert("Brand saved!");
+      setGeneratedDNA(null);
+      setUrl("");
+      setBrandName("");
+      fetchBrands();
+    } catch (e) {
+      alert("Failed to save brand");
+    }
+  };
+
+  return (
+    <div className="flex bg-gray-50 h-screen">
+      {/* Sidebar for Brands */}
+      <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
+        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+          <Briefcase className="w-6 h-6 text-indigo-600" /> Brands
+        </h2>
+        <div className="flex-1 overflow-y-auto space-y-2">
+          {brands.map(b => (
+            <div key={b.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="font-medium text-gray-900">{b.name}</div>
+              <div className="text-xs text-gray-500 truncate">{b.website_url}</div>
+            </div>
+          ))}
+        </div>
+        <button onClick={onBack} className="mt-4 text-sm text-gray-600 hover:text-gray-900">
+          ← Back to Campaigns
+        </button>
+      </div>
+
+      {/* Main Content: Generator */}
+      <div className="flex-1 p-8 overflow-y-auto">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">New Brand Identity</h1>
+          <p className="text-gray-500 mb-8">Generate a brand persona from a website to use in your campaigns.</p>
+
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Website URL</label>
+            <div className="flex gap-4 mb-6">
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={generateDNA}
+                disabled={loading || !url}
+                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Analyze
+              </button>
+            </div>
+
+            {generatedDNA && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                  <h3 className="font-bold text-indigo-900 mb-2">Analysis Result</h3>
+                  <div className="space-y-2 text-sm text-indigo-800">
+                    <p><strong>Voice:</strong> {generatedDNA.brand_voice}</p>
+                    <p><strong>Audience:</strong> {generatedDNA.target_audience}</p>
+                    <p><strong>Style:</strong> {generatedDNA.visual_style}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Brand Name</label>
+                  <input
+                    type="text"
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <button
+                    onClick={saveBrand}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-medium"
+                  >
+                    Save Brand Identity
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
+  const [view, setView] = useState("campaigns"); // 'campaigns' or 'brands'
+
+  // Data States
   const [campaigns, setCampaigns] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [selectedBrandId, setSelectedBrandId] = useState("");
   const [posts, setPosts] = useState([]);
 
   // UI States
   const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(null); // id of post being processed
+  const [processing, setProcessing] = useState(null);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState(null); // New: Lightbox state
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [viewMode, setViewMode] = useState('list');
+  const [selectedPostForModal, setSelectedPostForModal] = useState(null);
 
-  // New Campaign Form
+  // Forms
   const [newCampaignName, setNewCampaignName] = useState("");
-  const [newMasterPrompt, setNewMasterPrompt] = useState("");
-
-  // New Post Form
+  const [newCampaignPrompt, setNewCampaignPrompt] = useState("");
   const [newPostPrompt, setNewPostPrompt] = useState("");
   const [newPostType, setNewPostType] = useState("POST");
   const [newPostCount, setNewPostCount] = useState(1);
@@ -42,9 +178,57 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [useAsContent, setUseAsContent] = useState(false);
 
-  // View State
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
-  const [selectedPostForModal, setSelectedPostForModal] = useState(null);
+  // --- Effects ---
+  useEffect(() => {
+    fetchCampaigns();
+    axios.get("/brands").then(res => setBrands(res.data)).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (selectedCampaign) {
+      fetchPosts(selectedCampaign.id);
+    } else {
+      setPosts([]);
+    }
+  }, [selectedCampaign]);
+
+  useEffect(() => {
+    if (!selectedCampaign) return;
+    const hasPending = posts.some(p => p.status === 'PENDING');
+    if (hasPending) {
+      const interval = setInterval(() => {
+        fetchPosts(selectedCampaign.id, true);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [posts, selectedCampaign]);
+
+  // --- Handlers ---
+  const fetchCampaigns = async () => {
+    try {
+      const res = await axios.get('/campaigns');
+      setCampaigns(res.data);
+      if (res.data.length > 0 && !selectedCampaign) {
+        setSelectedCampaign(res.data[0]);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch campaigns");
+    }
+  };
+
+  const fetchPosts = async (campaignId, silent = false) => {
+    try {
+      if (!silent && view === 'campaigns') setLoading(true);
+      const res = await axios.get(`/campaigns/${campaignId}/posts`);
+      setPosts(res.data);
+    } catch (err) {
+      console.error(err);
+      if (!silent) setError("Failed to fetch posts");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -67,72 +251,23 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
-
-  useEffect(() => {
-    if (selectedCampaign) {
-      fetchPosts(selectedCampaign.id);
-    } else {
-      setPosts([]);
-    }
-  }, [selectedCampaign]);
-
-  // Polling for pending posts
-  useEffect(() => {
-    if (!selectedCampaign) return;
-
-    // Check if any post is in PENDING state
-    const hasPending = posts.some(p => p.status === 'PENDING');
-
-    if (hasPending) {
-      const interval = setInterval(() => {
-        fetchPosts(selectedCampaign.id, true); // Silent update
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [posts, selectedCampaign]);
-
-  const fetchCampaigns = async () => {
-    try {
-      const res = await axios.get('/campaigns');
-      setCampaigns(res.data);
-      if (res.data.length > 0 && !selectedCampaign) {
-        setSelectedCampaign(res.data[0]);
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to fetch campaigns");
-    }
-  };
-
-  const fetchPosts = async (campaignId, silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-      const res = await axios.get(`/campaigns/${campaignId}/posts`);
-      setPosts(res.data);
-    } catch (err) {
-      console.error(err);
-      if (!silent) setError("Failed to fetch posts");
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
   const createCampaign = async (e) => {
     e.preventDefault();
+    setError(null);
     try {
-      const res = await axios.post('/campaigns', {
+      const res = await axios.post("/campaigns", {
         name: newCampaignName,
-        master_prompt: newMasterPrompt
+        master_prompt: newCampaignPrompt,
+        brand_id: selectedBrandId ? parseInt(selectedBrandId) : null
       });
       setCampaigns([res.data, ...campaigns]);
       setSelectedCampaign(res.data);
       setModalOpen(false);
       setNewCampaignName("");
-      setNewMasterPrompt("");
+      setNewCampaignPrompt("");
+      setSelectedBrandId("");
     } catch (err) {
+      console.error(err);
       setError("Failed to create campaign");
     }
   };
@@ -152,6 +287,7 @@ function App() {
     }
   };
 
+  // Create Post Handler
   const createPost = async (e) => {
     e.preventDefault();
     if (!selectedCampaign) return;
@@ -163,7 +299,7 @@ function App() {
         input_image_url: uploadedImageUrl,
         use_as_content: useAsContent
       });
-      // Optimistically add to list
+
       const newPost = {
         id: res.data.id,
         campaign_id: selectedCampaign.id,
@@ -172,6 +308,7 @@ function App() {
         status: 'PENDING',
         created_at: new Date().toISOString()
       };
+
       setPosts([...posts, newPost]);
       setNewPostPrompt("");
       setUploadedImageUrl(null);
@@ -189,7 +326,6 @@ function App() {
     try {
       setProcessing(postId);
       await axios.post(`/posts/${postId}/generate`);
-      // Initial poll after 1s just in case it's super fast, regular polling will catch the rest
       setTimeout(() => fetchPosts(selectedCampaign.id, true), 1000);
     } catch (err) {
       console.error(err);
@@ -217,27 +353,38 @@ function App() {
     } catch (err) {
       console.error(err);
       alert("Failed to delete post: " + (err.response?.data?.detail || err.message));
-      setError("Failed to delete post");
     }
   };
 
+  // View Switcher
+  if (view === "brands") {
+    return <BrandManager onBack={() => setView("campaigns")} />;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-2 text-indigo-700 mb-6">
             <Briefcase className="w-6 h-6" />
-            <span className="font-bold text-lg tracking-tight">Arkesthetics</span>
+            <span className="font-bold text-lg tracking-tight">Vision Media 1.0</span>
           </div>
           <button
             onClick={() => setModalOpen(true)}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+            className="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-200 font-medium text-sm"
           >
-            <Plus className="w-4 h-4" />
-            New Campaign
+            <Plus className="w-4 h-4" /> New Campaign
+          </button>
+
+          <button
+            onClick={() => setView("brands")}
+            className="w-full mt-3 bg-white text-gray-700 border border-gray-200 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all font-medium text-sm"
+          >
+            <Sparkles className="w-4 h-4 text-purple-600" /> Manage Brands
           </button>
         </div>
+
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
           <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Campaigns</h3>
           {campaigns.map(campaign => (
@@ -310,7 +457,7 @@ function App() {
             </header>
 
             <main className="flex-1 overflow-y-auto p-8">
-              {/* Add Post Form - Only show in List view or if explicitly toggled (optional, for now keep in list view) */}
+              {/* Add Post Form */}
               {viewMode === 'list' && (
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-8">
                   <h2 className="text-sm font-medium text-gray-900 mb-4 flex items-center gap-2">
@@ -341,6 +488,22 @@ function App() {
                           <option value="REEL">Reel</option>
                         </select>
                       </div>
+
+                      {/* Brand Indicator */}
+                      <div className="flex items-end pb-2">
+                        {selectedCampaign.brand_name ? (
+                          <div className="flex items-center gap-1.5 px-2 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-md border border-purple-100" title="Posts inherit brand DNA from campaign">
+                            <Sparkles className="w-3 h-3" />
+                            {selectedCampaign.brand_name}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 text-gray-500 text-xs rounded-md border border-gray-100" title="No brand linked">
+                            <span className="w-2 h-2 rounded-full bg-gray-300"></span>
+                            No Brand
+                          </div>
+                        )}
+                      </div>
+
                       <div className="w-24">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Images</label>
                         <input
@@ -538,7 +701,7 @@ function App() {
             <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center mb-6">
               <Briefcase className="w-8 h-8 text-indigo-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to Arkesthetics Content Engine</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to Vision Media 1.0</h2>
             <p className="text-gray-500 max-w-md mb-8">
               Select an existing campaign from the sidebar or start a new one to begin automating your content strategy.
             </p>
@@ -561,82 +724,93 @@ function App() {
         )}
 
         {/* Create Campaign Modal */}
-        {
-          modalOpen && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">New Campaign</h2>
-                <form onSubmit={createCampaign}>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={newCampaignName}
-                        onChange={e => setNewCampaignName(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                        placeholder="e.g., Summer Glow 2026"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Master Prompt / Strategy</label>
-                      <textarea
-                        required
-                        value={newMasterPrompt}
-                        onChange={e => setNewMasterPrompt(e.target.value)}
-                        rows={4}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Define the overarching goal, tone, and visual direction for this campaign..."
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-3 mt-6">
-                    <button
-                      type="button"
-                      onClick={() => setModalOpen(false)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
-                    >
-                      Create Campaign
-                    </button>
-                  </div>
-                </form>
-              </div>
+        {modalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+              <h2 className="text-lg font-bold text-gray-900 mb-4">New Campaign</h2>
+              <form onSubmit={createCampaign} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCampaignName}
+                    onChange={(e) => setNewCampaignName(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="e.g., Summer Launch 2024"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Brand Identity (Optional)</label>
+                  <select
+                    value={selectedBrandId}
+                    onChange={(e) => setSelectedBrandId(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                  >
+                    <option value="">-- No Brand --</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Campaign will inherit brand voice and visual style.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Master Strategy / Objective</label>
+                  <textarea
+                    required
+                    value={newCampaignPrompt}
+                    onChange={(e) => setNewCampaignPrompt(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-24 resize-none"
+                    placeholder="Describe the high-level goal, target audience across all posts..."
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
+                  >
+                    Create Campaign
+                  </button>
+                </div>
+              </form>
             </div>
-          )
+          </div>
+        )
         }
 
         {/* Lightbox Modal */}
-        {
-          lightboxImage && (
-            <div
-              className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200"
+        {lightboxImage && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={() => setLightboxImage(null)}
+          >
+            <button
               onClick={() => setLightboxImage(null)}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 p-2"
             >
-              <button
-                onClick={() => setLightboxImage(null)}
-                className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors p-2"
-              >
-                <X className="w-8 h-8" />
-              </button>
-              <img
-                src={lightboxImage}
-                alt="Full size preview"
-                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                onClick={(e) => e.stopPropagation()} // Prevent closing when clicking image
-              />
-            </div>
-          )
+              <X className="w-8 h-8" />
+            </button>
+            <img
+              src={lightboxImage}
+              alt="Fullscreen view"
+              className="max-w-full max-h-screen object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )
         }
-
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }
 

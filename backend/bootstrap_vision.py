@@ -12,8 +12,9 @@ if not os.getenv("GEMINI_API_KEY"):
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 async def bootstrap():
-    url = "https://arkesthetics.com/"
-    print(f"Scraping {url}...")
+    # Example URL, can be changed
+    url = "https://example.com/" 
+    print(f"Scraping {url} for Vision Media analysis...")
     
     try:
         scraped_data = await scraper.scrape_website(url)

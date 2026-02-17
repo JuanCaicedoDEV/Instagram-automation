@@ -88,6 +88,17 @@ if not DATABASE_URL:
 class CampaignCreate(BaseModel):
     name: str
     master_prompt: str
+    brand_id: Optional[int] = None # Link campaign to a brand
+
+class BrandCreate(BaseModel):
+    name: str
+    website_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    identity_description: Optional[str] = None
+    brand_dna: dict = {}
+
+class BrandGenerate(BaseModel):
+    url: str
 
 class PostCreate(BaseModel):
     specific_prompt: str
@@ -148,10 +159,10 @@ async def create_campaign(campaign: CampaignCreate):
             
             query_start = time.time()
             campaign_id = await connection.fetchval("""
-                INSERT INTO campaigns (name, master_prompt)
-                VALUES ($1, $2)
+                INSERT INTO campaigns (name, master_prompt, brand_id)
+                VALUES ($1, $2, $3)
                 RETURNING id
-            """, campaign.name, campaign.master_prompt)
+            """, campaign.name, campaign.master_prompt, campaign.brand_id)
             query_end = time.time()
             logger.info(f"Query executed in {query_end - query_start:.4f}s")
             
@@ -168,14 +179,58 @@ async def get_campaigns():
     try:
         async with app.state.pool.acquire() as connection:
             rows = await connection.fetch("""
-                SELECT id, name, master_prompt, created_at 
-                FROM campaigns 
-                ORDER BY created_at DESC
+                SELECT c.id, c.name, c.master_prompt, c.created_at, c.brand_id, b.name as brand_name
+                FROM campaigns c
+                LEFT JOIN brands b ON c.brand_id = b.id
+                ORDER BY c.created_at DESC
             """)
             return [dict(row) for row in rows]
     except Exception as e:
         logger.error(f"Error fetching campaigns: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# --- Brand Endpoints ---
+@app.post("/brands/generate")
+async def generate_brand_dna(input: BrandGenerate):
+    try:
+        logger.info(f"Generating DNA for {input.url}")
+        scraped_data = await scraper.scrape_website(input.url)
+        html = scraped_data.get("html", "")
+        brand_dna = await generator.analyze_brand(html)
+        return brand_dna
+    except Exception as e:
+        logger.error(f"Error generating DNA: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate Brand DNA")
+
+@app.post("/brands")
+async def create_brand(brand: BrandCreate):
+    try:
+        async with app.state.pool.acquire() as connection:
+            brand_id = await connection.fetchval("""
+                INSERT INTO brands (name, website_url, logo_url, identity_description, brand_dna)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id
+            """, brand.name, brand.website_url, brand.logo_url, brand.identity_description, json.dumps(brand.brand_dna))
+            return {"id": brand_id, "name": brand.name}
+    except Exception as e:
+        logger.error(f"Error creating brand: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/brands")
+async def get_brands():
+    try:
+        async with app.state.pool.acquire() as connection:
+            rows = await connection.fetch("SELECT * FROM brands ORDER BY created_at DESC")
+            brands = []
+            for row in rows:
+                brand = dict(row)
+                if brand['brand_dna']:
+                    brand['brand_dna'] = json.loads(brand['brand_dna'])
+                brands.append(brand)
+            return brands
+    except Exception as e:
+        logger.error(f"Error fetching brands: {e}")
+        raise HTTPException(status_code=500)
 
 @app.delete("/campaigns/{campaign_id}")
 async def delete_campaign(campaign_id: int):
@@ -270,33 +325,30 @@ async def process_post_generation(post_id: int, prompt: str, image_count: int, i
     try:
         logger.info(f"Processing post {post_id}...")
         
-        # 1. Load Brand DNA (Optional / Deprecated)
-        # We no longer enforce a local brand_dna.json. 
-        # The 'brand_info' passed to generator will now be empty by default, 
-        # relying on the campaign (master prompt) and post (specific prompt) context.
+        # 2. Fetch Context (Brand DNA & Master Prompt)
         brand_dna = {} 
-
-        # 2. Generate Content
-        # Pass the image_saver callback to the generator
-        # Note: we need to construct the full prompt details as expected by the generator
-        # In the old code it was combining master strategy + specific prompt.
-        # Here we just have 'prompt' passed from the caller. The caller (create_post) passed specific_prompt.
-        # Ideally we should fetch the campaign's master prompt too, but for now let's just use what we have
-        # or fetch it if needed. 
-        # Actually, let's fetch the campaign master prompt to be correct.
-        
         master_prompt = ""
+        
         try:
              async with app.state.pool.acquire() as conn:
-                master_prompt = await conn.fetchval("""
-                    SELECT c.master_prompt 
+                # Optimized query to get everything in one go
+                row = await conn.fetchrow("""
+                    SELECT c.master_prompt, b.brand_dna 
                     FROM posts p 
                     JOIN campaigns c ON p.campaign_id = c.id 
+                    LEFT JOIN brands b ON c.brand_id = b.id
                     WHERE p.id = $1
                 """, post_id)
-        except Exception as db_e:
-            logger.error(f"Failed to fetch master prompt: {db_e}")
+                
+                if row:
+                    master_prompt = row['master_prompt']
+                    if row['brand_dna']:
+                        brand_dna = json.loads(row['brand_dna'])
 
+        except Exception as db_e:
+            logger.error(f"Failed to fetch context: {db_e}")
+
+        # 3. Generate Content
         full_prompt_details = f"Master Strategy: {master_prompt or ''}\nSpecific Context: {prompt}"
 
         content = await generator.generate_post(

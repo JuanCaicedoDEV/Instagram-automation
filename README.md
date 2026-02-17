@@ -1,4 +1,4 @@
-# 🚀 Arkesthetics Content Engine
+# 🚀 Vision Media 1.0 - Content Engine
 
 **An AI-powered platform for automated social media management.**
 
@@ -68,4 +68,4 @@ The system follows a **Clean Architecture** approach:
 - [ ] CI/CD Pipeline Integration.
 
 ---
-*Built with ❤️ by Arkesthetics Team.*
+*Built with ❤️ by Vision Media Team.*
