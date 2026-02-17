@@ -1,0 +1,13 @@
+{
+  "brand_name": "Arkesthetics",
+  "brand_voice": "Empowering, Scientific, Luxurious, Transformative",
+  "target_audience": "Individuals seeking advanced aesthetic treatments and skin rejuvenation.",
+  "color_palette": [
+    "#FFFFFF",
+    "#000000",
+    "#D4AF37",
+    "#F5F5F5"
+  ],
+  "visual_style": "High-end medical spa aesthetic, clean lines, before/after showcases, professional lighting.",
+  "prompt_suffix": "Create a high-end medical aesthetic image, clean, bright, professional lighting, luxury spa feel."
+}
