@@ -342,7 +342,7 @@ async def process_post_generation(post_id: int, prompt: str, image_count: int, i
              async with app.state.pool.acquire() as conn:
                 # Optimized query to get everything in one go
                 row = await conn.fetchrow("""
-                    SELECT c.master_prompt, b.brand_dna 
+                    SELECT c.master_prompt, b.brand_dna, p.status, p.image_urls, p.type, p.scheduled_at
                     FROM posts p 
                     JOIN campaigns c ON p.campaign_id = c.id 
                     LEFT JOIN brands b ON c.brand_id = b.id
@@ -350,9 +350,17 @@ async def process_post_generation(post_id: int, prompt: str, image_count: int, i
                 """, post_id)
                 
                 if row:
+                    # Guard: If post is already APPROVED and has images, skip re-generation to avoid overwriting
+                    if row['status'] == 'APPROVED' and row['image_urls'] and json.loads(row['image_urls']):
+                        logger.info(f"Post {post_id} already has approved content. Skipping generation.")
+                        return
+
                     master_prompt = row['master_prompt']
                     if row['brand_dna']:
                         brand_dna = json.loads(row['brand_dna'])
+                    
+                    post_type = row['type']
+                    scheduled_at = row['scheduled_at']
 
         except Exception as db_e:
             logger.error(f"Failed to fetch context: {db_e}")
@@ -365,7 +373,9 @@ async def process_post_generation(post_id: int, prompt: str, image_count: int, i
             full_prompt_details, 
             image_count=0 if use_as_content else image_count, 
             input_image_url=input_image_url,
-            image_saver=image_saver
+            image_saver=image_saver,
+            post_type=post_type,
+            scheduled_at=scheduled_at
         )
         
         caption = content.get("caption", "")
@@ -497,7 +507,7 @@ async def publish_post_to_instagram(post_id: int):
         async with app.state.pool.acquire() as connection:
             # 1. Get Post
             post = await connection.fetchrow("""
-                SELECT caption, image_urls, scheduled_at FROM posts WHERE id = $1
+                SELECT caption, image_urls, scheduled_at, type FROM posts WHERE id = $1
             """, post_id)
             
             if not post:
@@ -529,6 +539,7 @@ async def publish_post_to_instagram(post_id: int):
                     image_url, 
                     post['caption'], 
                     platform_config, 
+                    post_type=post['type'],
                     scheduled_at=post['scheduled_at']
                 )
             except Exception as e:

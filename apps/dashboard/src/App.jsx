@@ -7,7 +7,7 @@ import CalendarView from './CalendarView';
 import PostDetailModal from './PostDetailModal';
 
 // API Configuration
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_KEY = import.meta.env.VITE_API_KEY;
 
 // Configure global axios defaults

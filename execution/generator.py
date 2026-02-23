@@ -91,7 +91,7 @@ async def analyze_brand(text_content: str, visual_content_url: Optional[str] = N
         logger.error(f"Error analyzing brand with Gemini: {e}")
         raise
 
-async def generate_image(prompt: str, input_image: Optional[PILImage.Image] = None, image_saver: Optional[Callable[[bytes, str, str], str]] = None) -> str:
+async def generate_image(prompt: str, input_image: Optional[PILImage.Image] = None, image_saver: Optional[Callable[[bytes, str, str], str]] = None, aspect_ratio: str = "1:1") -> str:
     """
     Generates an image based on the prompt using Gemini's Imagen 3 model via google-genai SDK.
     If input_image is provided, it attempts to use it for image-to-image generation (if supported) 
@@ -108,7 +108,7 @@ async def generate_image(prompt: str, input_image: Optional[PILImage.Image] = No
             config=types.GenerateContentConfig(
                 response_modalities=['Image'],
                 image_config=types.ImageConfig(
-                    aspect_ratio="1:1",
+                    aspect_ratio=aspect_ratio,
                 )
             )
         )
@@ -155,7 +155,7 @@ async def generate_image(prompt: str, input_image: Optional[PILImage.Image] = No
         encoded_prompt = urllib.parse.quote(prompt[:50])
         return f"https://placehold.co/1024x1024/png?text={encoded_prompt}&font=roboto"
 
-async def generate_post(brand_info: Dict[str, Any], prompt_details: str = "Create a generic promotional post", image_count: int = 1, input_image_url: Optional[str] = None, image_saver: Optional[Callable[[bytes, str, str], str]] = None) -> Dict[str, Any]:
+async def generate_post(brand_info: Dict[str, Any], prompt_details: str = "Create a generic promotional post", image_count: int = 1, input_image_url: Optional[str] = None, image_saver: Optional[Callable[[bytes, str, str], str]] = None, post_type: str = "POST", scheduled_at: Optional[Any] = None) -> Dict[str, Any]:
     """
     Generates an Instagram caption and multiple image prompts/images.
     If input_image_url is provided, it uses the image to guide the caption and image prompts.
@@ -184,7 +184,9 @@ async def generate_post(brand_info: Dict[str, Any], prompt_details: str = "Creat
     {json.dumps(brand_info, indent=2) if brand_info else "No specific brand guidelines provided. Focus entirely on the POST DETAILS."}
 
     POST DETAILS:
-    {prompt_details}
+    - Content: {prompt_details}
+    - Format: {post_type} (Tailor caption and visuals for this specific format)
+    - Scheduled Date: {scheduled_at if scheduled_at else "Not specified"} (If a date is provided, ensure the content is contextually relevant to that time/season)
 
     """
     
@@ -256,7 +258,13 @@ async def generate_post(brand_info: Dict[str, Any], prompt_details: str = "Creat
         import asyncio
         logger.info(f"Generating {len(final_prompts)} images in parallel...")
         
-        tasks = [generate_image(prompt, input_image=input_image_pil if input_image_data else None, image_saver=image_saver) for prompt in final_prompts]
+        # Determine aspect ratio based on post type
+        # POST/FEED -> 1:1, STORY/REEL -> 9:16
+        aspect_ratio = "1:1"
+        if post_type.upper() in ["STORY", "REEL"]:
+            aspect_ratio = "9:16"
+
+        tasks = [generate_image(prompt, input_image=input_image_pil if input_image_data else None, image_saver=image_saver, aspect_ratio=aspect_ratio) for prompt in final_prompts]
         generated_urls = await asyncio.gather(*tasks)
 
         result["image_urls"] = generated_urls 

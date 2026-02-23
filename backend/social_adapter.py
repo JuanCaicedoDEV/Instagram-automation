@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class SocialAdapter(ABC):
     @abstractmethod
-    async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
+    async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], post_type: str = "POST", scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
         """Publishes content and returns a post ID/URL"""
         raise NotImplementedError("Subclasses must implement publish")
 
@@ -21,7 +21,7 @@ class OutstandAdapter(SocialAdapter):
         self.api_url = os.getenv("OUTSTAND_API_URL", "https://api.outstand.so/v1/publish") 
         self.api_key = os.getenv("OUTSTAND_API_KEY")
 
-    async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
+    async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], post_type: str = "POST", scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
         api_key = platform_config.get("api_key") or self.api_key
         if not api_key:
             raise ValueError("Outstand API Key not configured.")
@@ -52,7 +52,7 @@ class UploadPostAdapter(SocialAdapter):
         self.api_key = os.getenv("UPLOADPOST_API_KEY")
         self.user_id = os.getenv("UPLOADPOST_USER_ID", "default_user")
 
-    async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
+    async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], post_type: str = "POST", scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
         api_key = platform_config.get("api_key") or self.api_key
         if not api_key:
             raise ValueError("UploadPost API Key not configured. Set UPLOADPOST_API_KEY env var.")
@@ -87,7 +87,8 @@ class UploadPostAdapter(SocialAdapter):
             data = {
                 "user": self.user_id,
                 "platform[]": "instagram",
-                "title": caption
+                "title": caption,
+                "type": post_type.lower() # upload-post.com expects 'post', 'reel', 'story'
             }
 
             if scheduled_at:
