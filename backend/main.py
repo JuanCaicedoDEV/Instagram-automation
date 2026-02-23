@@ -454,18 +454,8 @@ async def delete_post(post_id: int):
         logger.error(f"Error deleting post: {e}")
         raise HTTPException(status_code=500)
 
-
-# ... existing imports ...
-# ... existing imports ...
-# from backend.instagram import InstagramClient  <-- Removed
-
-
-# ... existing pydantic models ...
-
 class InstagramConfig(BaseModel):
     api_key: str
-
-# ... existing code ...
 
 # Instagram Integration Endpoints
 @app.post("/integrations/instagram")
