@@ -44,7 +44,7 @@ async def api_key_middleware(request: Request, call_next):
     api_key = request.headers.get("X-API-Key")
     if API_SECRET_KEY:
         if api_key != API_SECRET_KEY:
-             logger.warning(f"Auth Failed. Expected: {API_SECRET_KEY[:4]}... Received: {api_key}")
+             logger.warning("Auth Failed: Invalid API Key")
              return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"detail": "Invalid or missing API Key"},
@@ -80,9 +80,8 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # Database URL (Strict - no default password)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    logger.error("DATABASE_URL is not set!")
-    # Fallback only for ease of testing if really needed, but better to fail secure
-    DATABASE_URL = "postgresql://user:password@db:5432/content_db" 
+    logger.error("DATABASE_URL is not set! Application will fail.")
+    raise RuntimeError("DATABASE_URL must be set in environment")
 
 # --- Pydantic Models ---
 class CampaignCreate(BaseModel):
@@ -98,7 +97,9 @@ class BrandCreate(BaseModel):
     brand_dna: dict = {}
 
 class BrandGenerate(BaseModel):
-    url: str
+    brand_context: Optional[str] = None
+    url: Optional[str] = None
+    logo_url: Optional[str] = None
 
 class PostCreate(BaseModel):
     specific_prompt: str
@@ -193,10 +194,18 @@ async def get_campaigns():
 @app.post("/brands/generate")
 async def generate_brand_dna(input: BrandGenerate):
     try:
-        logger.info(f"Generating DNA for {input.url}")
-        scraped_data = await scraper.scrape_website(input.url)
-        html = scraped_data.get("html", "")
-        brand_dna = await generator.analyze_brand(html)
+        content = input.brand_context or ""
+        
+        if input.url:
+            logger.info(f"Fetching content from {input.url}")
+            website_content = await scraper.fetch_website_content(input.url)
+            content += f"\n\n--- WEBSITE CONTENT ({input.url}) ---\n{website_content[:20000]}" # Truncate to avoid huge context
+            
+        if not content and not input.logo_url:
+             raise HTTPException(status_code=400, detail="Provide at least 'brand_context', 'url', or 'logo_url'")
+
+        logger.info(f"Generating DNA (Multimodal: Text len={len(content)}, Logo={bool(input.logo_url)})")
+        brand_dna = await generator.analyze_brand(content, input.logo_url)
         return brand_dna
     except Exception as e:
         logger.error(f"Error generating DNA: {e}")
@@ -454,8 +463,7 @@ async def delete_post(post_id: int):
 # ... existing pydantic models ...
 
 class InstagramConfig(BaseModel):
-    access_token: str
-    page_id: str
+    api_key: str
 
 # ... existing code ...
 
@@ -465,13 +473,14 @@ async def configure_instagram(config: InstagramConfig):
     try:
         async with app.state.pool.acquire() as connection:
             # Upsert integration config
+            # We reuse 'access_token' column to store the Outstand API Key for simplicity
             await connection.execute("""
                 INSERT INTO integrations (platform, access_token, page_id)
-                VALUES ('instagram', $1, $2)
+                VALUES ('instagram', $1, 'outstand')
                 ON CONFLICT (platform) 
-                DO UPDATE SET access_token = $1, page_id = $2, updated_at = CURRENT_TIMESTAMP
-            """, config.access_token, config.page_id)
-            return {"message": "Instagram configuration saved"}
+                DO UPDATE SET access_token = $1, page_id = 'outstand', updated_at = CURRENT_TIMESTAMP
+            """, config.api_key)
+            return {"message": "Instagram (Outstand) configuration saved"}
     except Exception as e:
         logger.error(f"Error saving Instagram config: {e}")
         raise HTTPException(status_code=500, detail="Failed to save configuration")
@@ -481,10 +490,12 @@ async def get_instagram_config():
     try:
         async with app.state.pool.acquire() as connection:
             row = await connection.fetchrow("""
-                SELECT page_id, updated_at FROM integrations WHERE platform = 'instagram'
+                SELECT access_token, updated_at FROM integrations WHERE platform = 'instagram'
             """)
-            if row:
-                return {"configured": True, "page_id": row["page_id"], "updated_at": row["updated_at"]}
+            if row and row['access_token']:
+                # Mask key for security
+                masked = f"{row['access_token'][:4]}...{row['access_token'][-4:]}" if len(row['access_token']) > 8 else "***"
+                return {"configured": True, "api_key_preview": masked, "updated_at": row["updated_at"]}
             return {"configured": False}
     except Exception as e:
         logger.error(f"Error fetching Instagram config: {e}")
@@ -496,7 +507,7 @@ async def publish_post_to_instagram(post_id: int):
         async with app.state.pool.acquire() as connection:
             # 1. Get Post
             post = await connection.fetchrow("""
-                SELECT caption, image_urls FROM posts WHERE id = $1
+                SELECT caption, image_urls, scheduled_at FROM posts WHERE id = $1
             """, post_id)
             
             if not post:
@@ -507,12 +518,14 @@ async def publish_post_to_instagram(post_id: int):
                 raise HTTPException(status_code=400, detail="Post has no images")
                 
             # 2. Get Integration Config
-            config = await connection.fetchrow("""
-                SELECT access_token, page_id FROM integrations WHERE platform = 'instagram'
+            config_row = await connection.fetchrow("""
+                SELECT access_token FROM integrations WHERE platform = 'instagram'
             """)
             
-            if not config:
-                raise HTTPException(status_code=400, detail="Instagram not configured")
+            # Pass to adapter as a dict
+            platform_config = {}
+            if config_row:
+                platform_config["api_key"] = config_row["access_token"]
             
             # 3. Publish
             from backend.social_adapter import get_social_adapter
@@ -522,7 +535,12 @@ async def publish_post_to_instagram(post_id: int):
             image_url = image_urls[0]
             
             try:
-                publish_id = await adapter.publish(image_url, post['caption'], config)
+                publish_id = await adapter.publish(
+                    image_url, 
+                    post['caption'], 
+                    platform_config, 
+                    scheduled_at=post['scheduled_at']
+                )
             except Exception as e:
                 logger.error(f"Adapter Publish Error: {e}")
                 raise HTTPException(status_code=500, detail=f"Publishing failed: {str(e)}")

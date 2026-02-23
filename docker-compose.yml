@@ -30,5 +30,17 @@ services:
       - db
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/dashboard:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_KEY=${API_SECRET_KEY}
+    command: sh -c "npm install && npm run dev"
+
 volumes:
   postgres_data:

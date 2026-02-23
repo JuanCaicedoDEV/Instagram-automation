@@ -22,49 +22,65 @@ if not GENAI_API_KEY:
 else:
     client = genai.Client(api_key=GENAI_API_KEY)
 
-async def analyze_brand(html_content: str) -> Dict[str, Any]:
+async def analyze_brand(text_content: str, visual_content_url: Optional[str] = None) -> Dict[str, Any]:
     """
-    Analyzes the brand identity from the provided HTML content using Gemini.
+    Analyzes the brand identity from the provided text description and optional visual content (logo/image) using Gemini.
     Returns a JSON object with brand details.
     """
     if not client:
         raise ValueError("GEMINI_API_KEY is not set")
 
     prompt = f"""
-    Actúa como un Director de Arte y Estratega de Marca Senior especializado en "Auditoría de Marca Digital".
+    Actúa como un Director de Arte y Estratega de Marca Senior.
 
-    Tu tarea es analizar el código HTML crudo y el texto del sitio web proporcionado. Al no tener referencia visual directa, debes usar tu capacidad deductiva para inferir la identidad visual a partir de la estructura del código, las clases CSS nombradas y el tono del contenido.
+    Tu tarea es analizar la identidad de marca basándote en la información proporcionada (Texto y/o Imagen).
+    Debes estructurar esta información en un perfil de marca coherente.
 
     Analiza los siguientes puntos:
-    1. **Verbal Identity (Copywriting):** ¿Cómo hablan? (Títulos, botones CTA, párrafos). ¿Son formales, disruptivos, técnicos, lujosos o amigables?
-    2. **Estética Inferida:** Basado en nombres de clases (ej: "btn-flat", "shadow-lg", "font-serif"), estructura del layout y el tipo de contenido, deduce el estilo visual probable (ej: Minimalista, Brutalista, Corporativo Clásico).
-    3. **Colores:** Busca códigos HEX (#) en el texto. Si no hay, infiere la paleta de colores más probable basándote en la psicología del color de la industria y el tono del texto.
+    1. **Verbal Identity (Copywriting):** ¿Cómo hablan? (Tono, estilo) Basado en el texto.
+    2. **Estética Visual:** 
+       - Si se proporciona una imagen (Logo/Web), analízala PRIORITARIAMENTE para extraer la paleta de colores exacta y el estilo gráfico.
+       - Si solo hay texto, deduce el estilo visual probable.
+    3. **Colores:** Extrae los códigos HEX exactos de la imagen si está disponible.
 
     Genera un JSON ESTRICTO (sin markdown, sin texto extra) con la siguiente estructura exacta:
 
     {{
-      "brand_name": "Nombre de la empresa detectado",
-      "brand_voice": "Descripción del tono de voz (ej: 'Autoritario y técnico, enfocado en ingenieros').",
+      "brand_name": "Nombre de la empresa (si se menciona) o 'Unknown'",
+      "brand_voice": "Descripción del tono de voz.",
       "target_audience": "Público objetivo deducido.",
       "color_palette": ["#HEX_PRIMARY", "#HEX_SECONDARY", "#HEX_ACCENT"],
-      "visual_style_description": "Descripción técnica deducida del estilo (ej: 'Se infiere un estilo limpio y corporativo por el uso de estructuras ordenadas y lenguaje profesional').",
-      "nano_banana_prompt_suffix": "Prompt para generar una imagen representativa de la web. Formato en Inglés: 'Website screenshot of a [Industry] company. Style: [Adjetivos]. Colors: [Colores]. UI Elements: [Botones/Formas]. High fidelity, UX/UI masterpiece.'",
+      "visual_style_description": "Descripción técnica del estilo visual.",
+      "nano_banana_prompt_suffix": "Prompt para generar una imagen representativa. Formato en Inglés: 'Style: [Adjetivos]. Colors: [Colores]. UI Elements: [Elementos]. High fidelity, UX/UI masterpiece.'",
       "keywords": ["Palabra clave 1", "Palabra clave 2", "Palabra clave 3"]
     }}
 
     IMPORTANTE:
     - Responde ÚNICAMENTE con el objeto JSON.
-    - Si faltan datos visuales, usa tu mejor criterio profesional para llenar los huecos basándote en el estándar de la industria del cliente.
-
+    
     ---
-    AQUÍ ESTÁ EL CÓDIGO HTML A ANALIZAR:
-    {html_content[:30000]} 
+    CONTEXTO TEXTUAL / URL CONTENT:
+    {text_content[:30000]} 
     """
+
+    contents = [prompt]
+    
+    if visual_content_url:
+        try:
+            logger.info(f"Fetching visual content from {visual_content_url}")
+            async with httpx.AsyncClient() as http_client:
+                 resp = await http_client.get(visual_content_url)
+                 resp.raise_for_status()
+                 image_data = resp.content
+                 # Pass image to Gemini
+                 contents.append(types.Part.from_bytes(data=image_data, mime_type="image/jpeg")) 
+        except Exception as e:
+            logger.warning(f"Failed to fetch/process visual content for analysis: {e}")
 
     try:
         response = client.models.generate_content(
             model='gemini-2.0-flash',
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json"
             )

@@ -12,7 +12,6 @@ RUN pip install --no-cache-dir \
     fastapi \
     uvicorn[standard] \
     httpx \
-    beautifulsoup4 \
     python-multipart \
     asyncpg \
     pydantic-settings \
