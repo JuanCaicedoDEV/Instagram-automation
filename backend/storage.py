@@ -17,10 +17,10 @@ class StorageProvider(ABC):
 class LocalStorageProvider(StorageProvider):
     def __init__(self, base_url: str = None):
         self.base_url = base_url or os.getenv("PUBLIC_URL", "http://localhost:8000")
-        self.upload_dir = Path("uploads")
+        self.upload_dir = Path(os.getenv("LOCAL_UPLOADS_DIR", "uploads"))
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         # Also ensure generated_images exists as we might map it differently or treat all as uploads
-        self.gen_dir = Path("generated_images")
+        self.gen_dir = Path(os.getenv("LOCAL_STORAGE_DIR", "generated_images"))
         self.gen_dir.mkdir(parents=True, exist_ok=True)
 
     def upload(self, file_data: Union[bytes, BinaryIO], filename: str, content_type: str) -> str:

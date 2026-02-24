@@ -1,0 +1,5 @@
+asyncpg
+requests
+supabase
+pydantic-settings
+python-dotenv

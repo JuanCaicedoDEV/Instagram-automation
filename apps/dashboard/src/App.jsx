@@ -25,6 +25,7 @@ function BrandManager({ onBack }) {
   const [generatedDNA, setGeneratedDNA] = useState(null);
   const [brandName, setBrandName] = useState("");
   const [brands, setBrands] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState(null); // New: Selected brand state
 
   useEffect(() => {
     fetchBrands();
@@ -114,9 +115,13 @@ function BrandManager({ onBack }) {
         </h2>
         <div className="flex-1 overflow-y-auto space-y-2">
           {brands.map(b => (
-            <div key={b.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 group hover:border-indigo-200 transition-colors">
-              <div className="font-medium text-gray-900">{b.name}</div>
-              <div className="text-xs text-gray-500 truncate">{b.website_url || "Manual Entry"}</div>
+            <div
+              key={b.id}
+              onClick={() => setSelectedBrand(b)}
+              className={`cursor-pointer p-3 rounded-lg border transition-colors ${selectedBrand?.id === b.id ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-100 hover:border-indigo-200 group'}`}
+            >
+              <div className={`font-medium ${selectedBrand?.id === b.id ? 'text-indigo-900' : 'text-gray-900'}`}>{b.name}</div>
+              <div className={`text-xs truncate ${selectedBrand?.id === b.id ? 'text-indigo-600' : 'text-gray-500'}`}>{b.website_url || "Manual Entry"}</div>
             </div>
           ))}
         </div>
@@ -125,150 +130,204 @@ function BrandManager({ onBack }) {
         </button>
       </div>
 
-      {/* Main Content: Generator */}
+      {/* Main Content: Generator or Brand Details */}
       <div className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-3xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">New Brand Identity</h1>
-          <p className="text-gray-500 mb-8">Generate a brand persona using AI. Provide a URL, text description, or logo.</p>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 space-y-6">
-
-            {/* Input Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Website URL (Optional)</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://example.com"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Brand Description / Context</label>
-                  <textarea
-                    value={brandContext}
-                    onChange={(e) => setBrandContext(e.target.value)}
-                    placeholder="Describe the brand's voice, values, and visual style..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 h-32 resize-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Brand Logo (Optional)</label>
-                  <div className="flex flex-col gap-3">
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                      {logoUrl ? (
-                        <img src={logoUrl} alt="Logo Preview" className="h-full w-full object-contain p-2" />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          {isUploadingLogo ? (
-                            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                          ) : (
-                            <>
-                              <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
-                              <p className="text-xs text-gray-500">Click to upload logo</p>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={isUploadingLogo} />
-                    </label>
-                    {logoUrl && (
-                      <button onClick={() => setLogoUrl(null)} className="text-xs text-red-600 hover:text-red-800 self-end">
-                        Remove Logo
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-4 border-t border-gray-100">
+        {selectedBrand ? (
+          <div className="max-w-3xl mx-auto">
+            <div className="flex justify-between items-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900">{selectedBrand.name}</h1>
               <button
-                onClick={generateDNA}
-                disabled={loading || (!url && !brandContext && !logoUrl)}
-                className="bg-indigo-600 text-white px-8 py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm transition-all hover:shadow"
+                onClick={() => setSelectedBrand(null)}
+                className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-medium hover:bg-indigo-200 transition-colors flex items-center gap-2"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Analyze Brand Identity
+                <Plus className="w-4 h-4" /> New Brand
               </button>
             </div>
 
-            {/* Analysis Results */}
-            {generatedDNA && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pt-6 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">Analysis Results</h3>
-                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">AI Generated</span>
-                </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">Brand Identity Matrix</h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Left Col: Core Identity */}
-                  <div className="space-y-4">
-                    <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                      <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-1 block">Brand Voice</label>
-                      <p className="text-sm text-indigo-900 leading-relaxed">{generatedDNA.brand_voice}</p>
-                    </div>
-                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                      <label className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1 block">Target Audience</label>
-                      <p className="text-sm text-blue-900 leading-relaxed">{generatedDNA.target_audience}</p>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Col: Core Identity */}
+                <div className="space-y-4">
+                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                    <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-1 block">Brand Voice</label>
+                    <p className="text-sm text-indigo-900 leading-relaxed">{selectedBrand.brand_dna?.brand_voice || "Not specified"}</p>
                   </div>
-
-                  {/* Right Col: Visuals */}
-                  <div className="space-y-4">
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Visual Style</label>
-                      <p className="text-sm text-gray-700 mb-4">{generatedDNA.visual_style_description || generatedDNA.visual_style}</p>
-
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Color Palette</label>
-                      <div className="flex flex-wrap gap-2">
-                        {generatedDNA.color_palette?.map((color, idx) => (
-                          <div key={idx} className="flex flex-col items-center gap-1 group">
-                            <div
-                              className="w-12 h-12 rounded-full shadow-sm border border-gray-200 ring-2 ring-transparent group-hover:ring-indigo-300 transition-all"
-                              style={{ backgroundColor: color }}
-                              title={color}
-                            />
-                            <span className="text-[10px] font-mono text-gray-500 uppercase">{color}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <label className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1 block">Target Audience</label>
+                    <p className="text-sm text-blue-900 leading-relaxed">{selectedBrand.brand_dna?.target_audience || "Not specified"}</p>
                   </div>
                 </div>
 
-                <div className="pt-6 border-t border-gray-100">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Save as Brand Name</label>
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={brandName}
-                      onChange={(e) => setBrandName(e.target.value)}
-                      placeholder="e.g. Acme Corp"
-                      className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      onClick={saveBrand}
-                      disabled={!brandName}
-                      className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                    >
-                      Save Brand
-                    </button>
+                {/* Right Col: Visuals */}
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Visual Style</label>
+                    <p className="text-sm text-gray-700 mb-4">{selectedBrand.brand_dna?.visual_style_description || selectedBrand.brand_dna?.visual_style || "Not specified"}</p>
+
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Color Palette</label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedBrand.brand_dna?.color_palette?.map((color, idx) => (
+                        <div key={idx} className="flex flex-col items-center gap-1 group">
+                          <div
+                            className="w-12 h-12 rounded-full shadow-sm border border-gray-200 ring-2 ring-transparent group-hover:ring-indigo-300 transition-all"
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                          <span className="text-[10px] font-mono text-gray-500 uppercase">{color}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">New Brand Identity</h1>
+            <p className="text-gray-500 mb-8">Generate a brand persona using AI. Provide a URL, text description, or logo.</p>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 space-y-6">
+
+              {/* Input Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Website URL (Optional)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://example.com"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brand Description / Context</label>
+                    <textarea
+                      value={brandContext}
+                      onChange={(e) => setBrandContext(e.target.value)}
+                      placeholder="Describe the brand's voice, values, and visual style..."
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 h-32 resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brand Logo (Optional)</label>
+                    <div className="flex flex-col gap-3">
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                        {logoUrl ? (
+                          <img src={logoUrl} alt="Logo Preview" className="h-full w-full object-contain p-2" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            {isUploadingLogo ? (
+                              <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                            ) : (
+                              <>
+                                <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
+                                <p className="text-xs text-gray-500">Click to upload logo</p>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={isUploadingLogo} />
+                      </label>
+                      {logoUrl && (
+                        <button onClick={() => setLogoUrl(null)} className="text-xs text-red-600 hover:text-red-800 self-end">
+                          Remove Logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-gray-100">
+                <button
+                  onClick={generateDNA}
+                  disabled={loading || (!url && !brandContext && !logoUrl)}
+                  className="bg-indigo-600 text-white px-8 py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-sm transition-all hover:shadow"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Analyze Brand Identity
+                </button>
+              </div>
+
+              {/* Analysis Results */}
+              {generatedDNA && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-gray-900">Analysis Results</h3>
+                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">AI Generated</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left Col: Core Identity */}
+                    <div className="space-y-4">
+                      <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                        <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-1 block">Brand Voice</label>
+                        <p className="text-sm text-indigo-900 leading-relaxed">{generatedDNA.brand_voice}</p>
+                      </div>
+                      <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <label className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1 block">Target Audience</label>
+                        <p className="text-sm text-blue-900 leading-relaxed">{generatedDNA.target_audience}</p>
+                      </div>
+                    </div>
+
+                    {/* Right Col: Visuals */}
+                    <div className="space-y-4">
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Visual Style</label>
+                        <p className="text-sm text-gray-700 mb-4">{generatedDNA.visual_style_description || generatedDNA.visual_style}</p>
+
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Color Palette</label>
+                        <div className="flex flex-wrap gap-2">
+                          {generatedDNA.color_palette?.map((color, idx) => (
+                            <div key={idx} className="flex flex-col items-center gap-1 group">
+                              <div
+                                className="w-12 h-12 rounded-full shadow-sm border border-gray-200 ring-2 ring-transparent group-hover:ring-indigo-300 transition-all"
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                              <span className="text-[10px] font-mono text-gray-500 uppercase">{color}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-gray-100">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Save as Brand Name</label>
+                    <div className="flex gap-3">
+                      <input
+                        type="text"
+                        value={brandName}
+                        onChange={(e) => setBrandName(e.target.value)}
+                        placeholder="e.g. Acme Corp"
+                        className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        onClick={saveBrand}
+                        disabled={!brandName}
+                        className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        Save Brand
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

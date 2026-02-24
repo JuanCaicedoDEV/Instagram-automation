@@ -24,5 +24,9 @@ dist/
 .idea/
 .vscode/
 
+# Build artifacts
+build/
+*.spec
+
 # Documentation (User requested no .md)
 *.md

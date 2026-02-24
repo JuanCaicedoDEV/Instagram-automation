@@ -1,4 +1,4 @@
-import httpx
+simport httpx
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -49,8 +49,8 @@ class UploadPostAdapter(SocialAdapter):
     """
     def __init__(self):
         self.api_url = "https://api.upload-post.com/api/upload_photos"
-        self.api_key = os.getenv("UPLOADPOST_API_KEY")
-        self.user_id = os.getenv("UPLOADPOST_USER_ID", "default_user")
+        self.api_key = os.getenv("UPLOAD_POST_API_KEY")
+        self.user_id = os.getenv("UPLOAD_POST_USER_ID", "default_user")
 
     async def publish(self, image_url: str, caption: str, platform_config: Dict[str, Any], post_type: str = "POST", scheduled_at: Optional[Any] = None, timezone: Optional[str] = None) -> str:
         api_key = platform_config.get("api_key") or self.api_key
@@ -129,5 +129,7 @@ class UploadPostAdapter(SocialAdapter):
                         file_info[1].close()
 
 def get_social_adapter() -> SocialAdapter:
-    # return OutstandAdapter()
+    adapter_type = os.getenv("SOCIAL_ADAPTER", "upload_post").lower()
+    if adapter_type == "outstand":
+        return OutstandAdapter()
     return UploadPostAdapter()

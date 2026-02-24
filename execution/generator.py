@@ -241,7 +241,7 @@ async def generate_post(brand_info: Dict[str, Any], prompt_details: str = "Creat
             image_prompts = [image_prompts]
         
         final_prompts = []
-        prompt_suffix = brand_info.get('prompt_suffix', '') if brand_info else ''
+        prompt_suffix = brand_info.get('nano_banana_prompt_suffix', '') if brand_info else ''
         
         for i, img_prompt in enumerate(image_prompts[:image_count]):
             p = f"{img_prompt}"

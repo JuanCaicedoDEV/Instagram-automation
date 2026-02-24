@@ -56,12 +56,16 @@ async def api_key_middleware(request: Request, call_next):
     return response
 
 # CORS Configuration
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "*" 
-]
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    origins = [orig.strip() for orig in allowed_origins_env.split(",")]
+else:
+    origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "*" 
+    ]
 
 app.add_middleware(
     CORSMiddleware,
@@ -575,3 +579,28 @@ async def patch_post(post_id: int, update: PostPatch):
         logger.error(f"Error patching post: {e}")
         raise HTTPException(status_code=500)
 
+# --- Frontend Serving (Desktop Mode) ---
+from fastapi.responses import FileResponse
+import os
+
+# Create dist directory if it doesn't exist to prevent crash during development
+os.makedirs("apps/dashboard/dist", exist_ok=True)
+os.makedirs("apps/dashboard/dist/assets", exist_ok=True)
+app.mount("/assets", StaticFiles(directory="apps/dashboard/dist/assets"), name="assets")
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    # Ignore API routes, images, uploads, etc.
+    if full_path.startswith("images/") or full_path.startswith("uploads/"):
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Try to serve a specific file if it exists in dist
+    dist_file = os.path.join("apps/dashboard/dist", full_path)
+    if os.path.isfile(dist_file):
+        return FileResponse(dist_file)
+        
+    # React Router catch-all
+    index_file = "apps/dashboard/dist/index.html"
+    if os.path.isfile(index_file):
+        return FileResponse(index_file)
+    return {"message": "Content Automation Engine is running (Frontend not built)"}
