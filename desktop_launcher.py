@@ -1,4 +1,7 @@
+import ctypes
+from logging import log
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -50,6 +53,14 @@ def prompt_for_config(config):
         upload = input("Enter Upload-Post API Key (Optional): ").strip()
         if upload:
             config['UPLOAD_POST_API_KEY'] = upload
+    if not config.get("UPLOAD_POST_USER_ID"):
+        upload_id = input("Enter Upload_Post User ID (Required if Upload Post Api Key has been seted): ").strip()
+        if upload_id:
+            config["UPLOAD_POST_USER_ID"] = upload_id
+    if not config.get("X-API-Key"):
+        x_api_key = input("Enter a value for X-API-Key header (Required for security): ").strip()
+        if x_api_key:
+            config["X-API-Key"] = x_api_key
 
     save_config(config)
     print("\n✅ Configuration saved!\n")
@@ -61,19 +72,33 @@ def run_server():
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="error")
 
 def main():
+    """
+    #Pedir permisos de admin para escribir el archivo de config.json en Program Files
+    if ctypes.windll.shell32.IsUserAnAdmin() == False:
+        ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, " ".join(sys.argv), None, 0
+            )
+    """
+    process = subprocess.Popen(
+        ["python", "desktop_launcher.py"],
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    )
+    print(f"PID: {process.pid}")
     config = load_config()
-    if not config.get('DATABASE_URL') or not config.get('GEMINI_API_KEY') or not config.get('UPLOAD_POST_API_KEY'):
-        config = prompt_for_config(config)
+    config = prompt_for_config(config)
         
     # Inject into environment for FastAPI to pick up
     os.environ['DATABASE_URL'] = config.get('DATABASE_URL', '')
     os.environ['GEMINI_API_KEY'] = config.get('GEMINI_API_KEY', '')
     os.environ['UPLOAD_POST_API_KEY'] = config.get('UPLOAD_POST_API_KEY', '')
+    os.environ["UPLOAD_POST_USER_ID"] = config.get("UPLOAD_POST_USER_ID", "")
+    os.environ["X-API-Key"] = config.get("X-API-Key", "")
     
     # We want local storage, and we want to write next to the executable
     os.environ['STORAGE_PROVIDER'] = 'local'
     images_dir = os.path.join(application_path, "generated_images")
     uploads_dir = os.path.join(application_path, "uploads")
+    print(f"Path de la carpeta de uploads: {uploads_dir}")
     os.makedirs(images_dir, exist_ok=True)
     os.makedirs(uploads_dir, exist_ok=True)
     
@@ -84,7 +109,7 @@ def main():
     # PyInstaller unpacks the app to a temp location (_MEIPASS)
     if getattr(sys, 'frozen', False):
         os.chdir(sys._MEIPASS)
-
+        
     print("Starting Content Engine...")
     t = threading.Thread(target=run_server, daemon=True)
     t.start()

@@ -10,6 +10,7 @@ __pycache__/
 env/
 venv/
 postgres_data/
+config.json
 
 # Application Data
 generated_images/
